@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Operations Center | VivanX</title>
+    <link rel="stylesheet" href="styles/style.css">
+    <style>
+        .admin-grid { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+        .sidebar { background: #0F172A; color: white; padding: 2rem; }
+        .main-content { padding: 3rem; background: var(--bg-main); }
+        .table-card { width: 100%; border-collapse: collapse; margin-top: 1.5rem; background: white; border-radius: var(--radius-md); overflow: hidden; }
+        .table-card th, .table-card td { padding: 1rem; text-align: left; border-bottom: 1px solid #E2E8F0; }
+        .table-card th { background: #F1F5F9; color: var(--text-dark); }
+    </style>
+</head>
+<body>
+
+    <div class="admin-grid">
+        <div class="sidebar">
+            <h2>VivanX Admin</h2>
+            <p style="color:#64748B; font-size:0.85rem;">Logistics Command</p>
+            <nav style="margin-top: 3rem; display:flex; flex-direction:column; gap:1rem;">
+                <a href="#" style="color:white; text-decoration:none; font-weight:600;">📦 Consignments</a>
+                <a href="#" onclick="logout()" style="color:#EF4444; text-decoration:none;">Logout</a>
+            </nav>
+        </div>
+        <div class="main-content">
+            <div style="display:flex; justify-content:between; align-items:center; margin-bottom:2rem;">
+                <h2>Active Request Pipeline</h2>
+            </div>
+
+            <table class="table-card">
+                <thead>
+                    <tr>
+                        <th>Sender</th>
+                        <th>Receiver</th>
+                        <th>Weight</th>
+                        <th>Status</th>
+                        <th>AWB / Tracking</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="bookingsTableBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://your-backend-render-app.onrender.com/api";
+        
+        // Token Guard Check
+        if(!localStorage.getItem('adminToken')) {
+            // If token configuration is empty redirect cleanly
+            // window.location.href = 'index.html'; 
+        }
+
+        async function loadDashboardRequests() {
+            try {
+                // Fetch dynamic pipeline from endpoint
+                const res = await fetch(`${API_URL}/admin/bookings`, {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+                });
+                const bookings = await res.json();
+                const tbody = document.getElementById('bookingsTableBody');
+                tbody.innerHTML = '';
+
+                bookings.forEach(b => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${b.sender.name}</td>
+                            <td>${b.receiver.name}</td>
+                            <td>${b.parcel.weight} KG</td>
+                            <td><span class="badge">${b.status}</span></td>
+                            <td>${b.awb || '<span style="color:gray">Unassigned</span>'}</td>
+                            <td>
+                                ${!b.awb ? `<button onclick="acceptOrder('${b._id}')" class="btn-primary" style="padding:0.4rem 0.8rem; font-size:0.8rem;">Accept & AWB</button>` : 'System Linked'}
+                            </td>
+                        </tr>
+                    `;
+                });
+            } catch (err) {
+                console.error("Pipeline render failure.");
+            }
+        }
+
+        async function acceptOrder(id) {
+            const res = await fetch(`${API_URL}/admin/bookings/${id}/accept`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('adminToken')}` }
+            });
+            if(res.ok) {
+                alert("AWB Sequence Generated cleanly via operational pipeline.");
+                loadDashboardRequests();
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('adminToken');
+            window.location.reload();
+        }
+
+        // Initialize table structure execution load
+        window.onload = loadDashboardRequests;
+    </script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
