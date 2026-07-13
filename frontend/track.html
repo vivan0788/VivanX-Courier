@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Shipment | VivanX Courier</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .search-wrapper { max-width: 600px; margin: 4rem auto 2rem; text-align: center; }
+        .track-field-group { display: flex; background: white; padding: 0.5rem; border-radius: var(--radius-md); box-shadow: var(--shadow-md); border: 1px solid var(--border-color); }
+        .track-field-group input { border: none; padding: 1rem; width: 75%; font-size: 1rem; outline: none; font-family: inherit; }
+        .status-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-color); }
+        .timeline { margin-top: 2rem; position: relative; padding-left: 2rem; border-left: 2px solid var(--border-color); }
+        .timeline-item { position: relative; margin-bottom: 2rem; }
+        .timeline-item::before { content: ''; position: absolute; left: calc(-2rem - 6px); top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--border-color); border: 2px solid var(--surface); }
+        .timeline-item.active::before { background: var(--primary); box-shadow: 0 0 0 4px rgba(15, 98, 254, 0.2); }
+    </style>
+</head>
+<body>
+
+    <div style="padding: 0 1rem;">
+        <div class="search-wrapper">
+            <h1 style="margin-bottom: 0.5rem; color: var(--text-dark);">Track Your Consignment</h1>
+            <p style="color: var(--text-muted); margin-bottom: 2rem;">Real-time ecosystem updates for VivanX Dispatches</p>
+            
+            <div class="track-field-group">
+                <input type="text" id="awbSearchInput" placeholder="Enter AWB Number (e.g., VX250713000001)">
+                <button onclick="executeTrackingQuery()" class="btn-primary" style="width: 25%;">Track</button>
+            </div>
+        </div>
+
+        <div id="trackingContainer" class="card" style="max-width: 700px; margin: 0 auto 5rem; display: none;">
+            </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+    <script>
+        async function executeTrackingQuery() {
+            const awb = document.getElementById('awbSearchInput').value.trim();
+            const container = document.getElementById('trackingContainer');
+            
+            if(!awb) {
+                alert("Please enter a valid AWB tracking ID.");
+                return;
+            }
+
+            UI.showLoadingSpinner('trackingContainer');
+            container.style.display = 'block';
+
+            try {
+                // api.js ke centralized calls engine ka upyog kiya gaya hai
+                const response = await API.trackParcel(awb);
+                const data = await response.json();
+                
+                UI.clearElement('trackingContainer');
+
+                if (response.status === 404) {
+                    // Scenario: Agar booking request verification level par hai aur AWB generate nahi hua hai
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 1.5rem 0;">
+                            <i lucide="clock" style="color: var(--secondary); width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+                            <h3 style="color: var(--text-dark); margin-bottom: 0.5rem;">Verification Processing</h3>
+                            <p style="color: var(--text-muted); font-weight: 500; line-height: 1.6;">
+                                ${data.message}
+                            </p>
+                        </div>
+                    `;
+                } else if (response.ok) {
+                    // Scenario: Active tracking updates data load architecture
+                    let timelineHTML = '';
+                    
+                    if (data.timeline && data.timeline.length > 0) {
+                        data.timeline.forEach((step, idx) => {
+                            const isActive = idx === 0 ? 'active' : '';
+                            timelineHTML += `
+                                <div class="timeline-item ${isActive}">
+                                    <div style="font-weight: 600; color: ${idx === 0 ? 'var(--primary)' : 'var(--text-dark)'}">${step.status}</div>
+                                    <div style="font-size: 0.85rem; color: var(--text-muted);">${step.location} • ${step.time}</div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        timelineHTML = `<p style="color: var(--text-muted);">Manifest initialization pending entry loop.</p>`;
+                    }
+
+                    container.innerHTML = `
+                        <div class="status-header">
+                            <div>
+                                <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">AWB: ${data.awb}</span>
+                                <h3 style="margin-top: 0.25rem;">Route Status: <span style="color: var(--primary);">${data.status}</span></h3>
+                            </div>
+                            <span class="badge badge-accepted">${data.status}</span>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem; background: var(--bg-main); padding: 1rem; border-radius: var(--radius-md);">
+                            <div>
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">Current Hub Location</span>
+                                <div style="font-weight: 600;">${data.currentLocation}</div>
+                            </div>
+                            <div>
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">Estimated Delivery Timeline</span>
+                                <div style="font-weight: 600; color: var(--secondary);">${data.estimatedDelivery}</div>
+                            </div>
+                        </div>
+
+                        <h4>Transit Ledger Timeline</h4>
+                        <div class="timeline">
+                            ${timelineHTML}
+                        </div>
+                    `;
+                }
+                
+                // Naye dynamically generated elements ke liye icons reset karein
+                lucide.createIcons();
+
+            } catch(err) {
+                console.error(err);
+                container.innerHTML = `<p style="color: red; text-align: center;">Unable to securely resolve tracking system node links right now.</p>`;
+            }
+        }
+    </script>
+<script src="js/api.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
